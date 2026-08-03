@@ -26,11 +26,12 @@ export async function generateProposalImage(
   proposalName: string,
   imageStyle: 'render3d' | 'illustration',
   landContext: string,
+  aerialImageDataUrl?: string | null,
 ): Promise<string> {
   const res = await fetch('/api/generate-image', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ proposalName, imageStyle, landContext }),
+    body: JSON.stringify({ proposalName, imageStyle, landContext, aerialImageDataUrl: aerialImageDataUrl ?? undefined }),
   })
 
   if (res.status === 503) throw new ImageGenUnavailableError()

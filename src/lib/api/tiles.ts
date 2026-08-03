@@ -133,6 +133,35 @@ export function mapTileUrl(t: TileCoord): string {
   return `https://cyberjapandata.gsi.go.jp/xyz/pale/${t.z}/${t.x}/${t.y}.png`
 }
 
+async function urlToDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    if (!blob.type.startsWith('image/')) return null
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(new Error('画像の読み込みに失敗しました'))
+      reader.readAsDataURL(blob)
+    })
+  } catch {
+    return null
+  }
+}
+
+/**
+ * 完成イメージAI生成の参照画像として使う、対象地の実際の航空写真(data URL)を取得する。
+ * Google Maps Static APIを優先し、失敗時はEsri World Imageryの中心タイルにフォールバックする。
+ */
+export async function fetchAerialReferenceImage(lat: number, lng: number, zoom: number): Promise<string | null> {
+  const google = await urlToDataUrl(googleStaticMapUrl(lat, lng, zoom))
+  if (google) return google
+
+  const { x, y } = latLngToTile(lat, lng, zoom)
+  return urlToDataUrl(aerialTileUrl({ x: Math.floor(x), y: Math.floor(y), z: zoom }))
+}
+
 /**
  * 多角形の面積(平方メートル)。
  *

@@ -16,6 +16,8 @@ interface GenerateImageRequest {
   proposalName: string
   imageStyle: 'render3d' | 'illustration'
   landContext: string
+  /** 対象地の実際の航空写真(data URL)。指定時はこれを参照画像として画像編集APIを使う */
+  aerialImageDataUrl?: string
 }
 
 // Node.jsランタイムではdefault exportに(req, res)形式が期待され、Response(Web標準)を
@@ -39,23 +41,53 @@ export async function POST(req: Request): Promise<Response> {
       ? 'photorealistic 3D architectural rendering, daytime, clean composition, professional real-estate visualization style'
       : 'friendly flat-illustration style, soft colors, simple shapes, architectural concept illustration style'
 
-  const prompt = `A completed-project visualization of "${body.proposalName}" built on a vacant lot in Japan (${body.landContext}). ${styleInstruction}. Show the finished facility clearly, no text or watermarks, no people's faces visible.`
+  const basePrompt = `A completed-project visualization of "${body.proposalName}" built on a vacant lot in Japan (${body.landContext}). ${styleInstruction}. Show the finished facility clearly, no text or watermarks, no people's faces visible.`
 
   try {
-    const res = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-image-1',
-        prompt,
-        size: '1024x1024',
-        quality: 'medium',
-        n: 1,
-      }),
-    })
+    let res: Response
+
+    if (body.aerialImageDataUrl) {
+      // 実際の航空写真を参照画像として渡し、その区画の形状・周辺環境を踏まえた
+      // 完成イメージを生成する(画像編集API)。テキストのみからの生成より現地に即した結果になる。
+      const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(body.aerialImageDataUrl)
+      if (!match) {
+        return Response.json({ error: '航空写真データの形式が不正です' }, { status: 400 })
+      }
+      const [, mime, base64] = match
+      const bytes = Buffer.from(base64, 'base64')
+      const ext = mime.split('/')[1] ?? 'png'
+
+      const prompt = `${basePrompt} The attached aerial photo shows the exact plot's shape, boundaries, and surrounding buildings/roads — use it as reference so the completed facility accurately fits this specific plot and context, viewed from a natural elevated 3/4 perspective (not a flat top-down view).`
+
+      const form = new FormData()
+      form.set('model', 'gpt-image-1')
+      form.set('image', new Blob([bytes], { type: mime }), `aerial.${ext}`)
+      form.set('prompt', prompt)
+      form.set('size', '1024x1024')
+      form.set('quality', 'medium')
+      form.set('n', '1')
+
+      res = await fetch('https://api.openai.com/v1/images/edits', {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}` },
+        body: form,
+      })
+    } else {
+      res = await fetch('https://api.openai.com/v1/images/generations', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: 'gpt-image-1',
+          prompt: basePrompt,
+          size: '1024x1024',
+          quality: 'medium',
+          n: 1,
+        }),
+      })
+    }
 
     if (!res.ok) {
       const errText = await res.text()

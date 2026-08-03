@@ -1,18 +1,37 @@
+import { useEffect, useState } from 'react'
 import type { UtilizationProposal } from '../types/diagnosis'
 import { formatManYen } from '../lib/format'
+import { fetchAerialReferenceImage } from '../lib/api/tiles'
 import { ProposalArt } from './ProposalArt'
 
 interface Props {
   proposals: UtilizationProposal[]
   /** AI画像生成を行う対象地の簡潔な説明(住所・用途地域など) */
   landContext?: string
+  lat?: number | null
+  lng?: number | null
 }
 
 const RANK_BADGE = ['bg-amber-400 text-amber-950', 'bg-neutral-300 text-neutral-800', 'bg-orange-300 text-orange-950']
 /** コスト抑制のため、AI画像生成は上位何件に限定するか */
 const AI_IMAGE_LIMIT = 3
+/** 完成イメージ生成の参照画像として使う航空写真のズームレベル */
+const AERIAL_REF_ZOOM = 19
 
-export function UtilizationRanking({ proposals, landContext = '' }: Props) {
+export function UtilizationRanking({ proposals, landContext = '', lat, lng }: Props) {
+  const [aerialImageDataUrl, setAerialImageDataUrl] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (lat == null || lng == null) return
+    let cancelled = false
+    fetchAerialReferenceImage(lat, lng, AERIAL_REF_ZOOM).then((dataUrl) => {
+      if (!cancelled) setAerialImageDataUrl(dataUrl)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [lat, lng])
+
   return (
     <div className="space-y-4">
       <div>
@@ -41,6 +60,7 @@ export function UtilizationRanking({ proposals, landContext = '' }: Props) {
               imageStyle={p.imageStyle}
               useAiImage={idx < AI_IMAGE_LIMIT}
               landContext={landContext}
+              aerialImageDataUrl={aerialImageDataUrl}
             />
 
             <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-3 leading-relaxed">{p.description}</p>

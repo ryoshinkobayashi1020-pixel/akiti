@@ -8,6 +8,8 @@ interface Props {
   /** trueの場合、AI画像生成APIで実際の完成イメージを試みる(コストが発生するため上位提案のみ推奨) */
   useAiImage?: boolean
   landContext?: string
+  /** 対象地の実際の航空写真(data URL)。指定時はこれを参照にした完成イメージを生成する */
+  aerialImageDataUrl?: string | null
 }
 
 const PALETTE: Record<string, [string, string]> = {
@@ -136,7 +138,7 @@ function PlaceholderArt({ id }: { id: string }) {
   )
 }
 
-export function ProposalArt({ id, name, imageStyle, useAiImage = false, landContext = '' }: Props) {
+export function ProposalArt({ id, name, imageStyle, useAiImage = false, landContext = '', aerialImageDataUrl }: Props) {
   const [aiImageUrl, setAiImageUrl] = useState<string | null>(() => getCachedProposalImage(id) ?? null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiFailed, setAiFailed] = useState(false)
@@ -145,7 +147,7 @@ export function ProposalArt({ id, name, imageStyle, useAiImage = false, landCont
     if (!useAiImage || aiImageUrl) return
     let cancelled = false
     setAiLoading(true)
-    generateProposalImage(id, name, imageStyle, landContext)
+    generateProposalImage(id, name, imageStyle, landContext, aerialImageDataUrl)
       .then((url) => {
         if (!cancelled) setAiImageUrl(url)
       })

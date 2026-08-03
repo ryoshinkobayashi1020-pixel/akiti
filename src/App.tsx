@@ -135,6 +135,8 @@ function App() {
             <UtilizationRanking
               proposals={result.proposals}
               landContext={`${result.location.address} / ${result.surrounding.youtoChiiki.value}`}
+              lat={result.location.lat}
+              lng={result.location.lng}
             />
             <RevenueSimulation projections={result.projections} assumption={result.revenueAssumption} />
             <ReportExport result={result} photoUrl={photo?.previewUrl ?? null} />
