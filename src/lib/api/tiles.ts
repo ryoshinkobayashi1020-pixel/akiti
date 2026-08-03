@@ -117,6 +117,17 @@ export function googleStaticMapUrl(lat: number, lng: number, zoom: number): stri
   return `/api/static-map?lat=${lat}&lng=${lng}&zoom=${zoom}&size=${GOOGLE_STATIC_MAP_SIZE}`
 }
 
+/** Google Street View Static API(現地の雰囲気・接道状況を確認する追加情報)。サーバー側プロキシ経由。 */
+export const STREET_VIEW_SIZE = 640
+
+export function streetViewMetadataUrl(lat: number, lng: number): string {
+  return `/api/street-view?lat=${lat}&lng=${lng}&mode=metadata`
+}
+
+export function streetViewImageUrl(lat: number, lng: number): string {
+  return `/api/street-view?lat=${lat}&lng=${lng}&size=${STREET_VIEW_SIZE}`
+}
+
 /** 地図タイル(国土地理院 標準地図)。APIキー不要。 */
 export function mapTileUrl(t: TileCoord): string {
   return `https://cyberjapandata.gsi.go.jp/xyz/pale/${t.z}/${t.x}/${t.y}.png`

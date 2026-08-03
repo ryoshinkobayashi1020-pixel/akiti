@@ -1,6 +1,7 @@
 import type { DiagnosisResult, DataSource, Sourced } from '../types/diagnosis'
 import { formatManYen } from '../lib/format'
 import { TileCanvas } from './TileCanvas'
+import { StreetView } from './StreetView'
 
 interface Props {
   result: DiagnosisResult
@@ -53,6 +54,9 @@ export function ResultsDashboard({ result, photoUrl }: Props) {
         )}
         {location.lat != null && location.lng != null && (
           <TileCanvas lat={location.lat} lng={location.lng} zoom={18} kind="aerial" className="rounded-2xl border border-neutral-200 dark:border-neutral-800 h-56" />
+        )}
+        {location.lat != null && location.lng != null && (
+          <StreetView lat={location.lat} lng={location.lng} className="rounded-2xl border border-neutral-200 dark:border-neutral-800 h-56" />
         )}
       </div>
 
