@@ -110,6 +110,13 @@ export function aerialTileUrl(t: TileCoord): string {
   return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${t.z}/${t.y}/${t.x}`
 }
 
+/** Google Maps Static APIの衛星写真(1枚画像)。サーバー側プロキシ経由でキーを隠す。 */
+export const GOOGLE_STATIC_MAP_SIZE = 640
+
+export function googleStaticMapUrl(lat: number, lng: number, zoom: number): string {
+  return `/api/static-map?lat=${lat}&lng=${lng}&zoom=${zoom}&size=${GOOGLE_STATIC_MAP_SIZE}`
+}
+
 /** 地図タイル(国土地理院 標準地図)。APIキー不要。 */
 export function mapTileUrl(t: TileCoord): string {
   return `https://cyberjapandata.gsi.go.jp/xyz/pale/${t.z}/${t.x}/${t.y}.png`

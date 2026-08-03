@@ -1,5 +1,17 @@
 import { useRef, useState } from 'react'
-import { buildTileGrid, aerialTileUrl, polygonAreaSqm, polygonPerimeterMeters, metersPerPixel, sqmToTsubo, tileToLatLng, TILE_SIZE } from '../lib/api/tiles'
+import {
+  buildTileGrid,
+  aerialTileUrl,
+  googleStaticMapUrl,
+  GOOGLE_STATIC_MAP_SIZE,
+  polygonAreaSqm,
+  polygonPerimeterMeters,
+  metersPerPixel,
+  sqmToTsubo,
+  latLngToTile,
+  tileToLatLng,
+  TILE_SIZE,
+} from '../lib/api/tiles'
 
 interface Point {
   x: number
@@ -31,15 +43,20 @@ const ROWS = 3
  *
  * ズームと緯度から1ピクセルあたりの実距離が確定するため、
  * 得られる面積は目測ではなく計算値になる。
+ *
+ * 航空写真はGoogle Maps Static API(衛星写真)を優先的に使う。Esri World Imageryは
+ * 日本国内で解像度が粗い・データが存在しないエリアが多いため、Googleが利用できない
+ * 場合(APIキー未設定・読み込み失敗)のみフォールバックとして使用する。
  */
 export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
   const [points, setPoints] = useState<Point[]>([])
   const [adjustMode, setAdjustMode] = useState(false)
+  const [provider, setProvider] = useState<'google' | 'esri'>('google')
   const containerRef = useRef<HTMLDivElement>(null)
 
   const grid = buildTileGrid(lat, lng, ZOOM, COLS, ROWS)
-  const width = grid.width
-  const height = grid.height
+  const width = provider === 'google' ? GOOGLE_STATIC_MAP_SIZE : grid.width
+  const height = provider === 'google' ? GOOGLE_STATIC_MAP_SIZE : grid.height
   const mpp = metersPerPixel(lat, ZOOM)
 
   function emit(next: Point[]) {
@@ -56,6 +73,20 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
     })
   }
 
+  /** タップ位置(タイル座標系のピクセル)を緯度経度に変換する */
+  function pixelToLatLng(px: number, py: number): { lat: number; lng: number } {
+    if (provider === 'google') {
+      const center = latLngToTile(lat, lng, ZOOM)
+      const fx = center.x + (px - width / 2) / TILE_SIZE
+      const fy = center.y + (py - height / 2) / TILE_SIZE
+      return tileToLatLng(fx, fy, ZOOM)
+    }
+    const origin = grid.tiles[0]
+    const fx = origin.x + px / TILE_SIZE
+    const fy = origin.y + py / TILE_SIZE
+    return tileToLatLng(fx, fy, ZOOM)
+  }
+
   function handleClick(e: React.MouseEvent<HTMLDivElement>) {
     const rect = containerRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -66,10 +97,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
 
     if (adjustMode) {
       // GPS・住所検索の誤差で中心がずれている場合、タップ位置を新しい中心として採用する
-      const origin = grid.tiles[0]
-      const fx = origin.x + px / TILE_SIZE
-      const fy = origin.y + py / TILE_SIZE
-      const { lat: newLat, lng: newLng } = tileToLatLng(fx, fy, ZOOM)
+      const { lat: newLat, lng: newLng } = pixelToLatLng(px, py)
       setAdjustMode(false)
       setPoints([])
       onChange(null)
@@ -137,21 +165,31 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         style={{ aspectRatio: `${width} / ${height}` }}
       >
         <div className="absolute inset-0">
-          {grid.tiles.map((t) => (
+          {provider === 'google' ? (
             <img
-              key={`${t.z}-${t.x}-${t.y}`}
-              src={aerialTileUrl(t)}
+              src={googleStaticMapUrl(lat, lng, ZOOM)}
               alt=""
-              className="absolute"
-              style={{
-                left: `${(t.left / width) * 100}%`,
-                top: `${(t.top / height) * 100}%`,
-                width: `${(TILE_SIZE / width) * 100}%`,
-                height: `${(TILE_SIZE / height) * 100}%`,
-              }}
+              className="absolute inset-0 w-full h-full object-cover"
+              onError={() => setProvider('esri')}
               draggable={false}
             />
-          ))}
+          ) : (
+            grid.tiles.map((t) => (
+              <img
+                key={`${t.z}-${t.x}-${t.y}`}
+                src={aerialTileUrl(t)}
+                alt=""
+                className="absolute"
+                style={{
+                  left: `${(t.left / width) * 100}%`,
+                  top: `${(t.top / height) * 100}%`,
+                  width: `${(TILE_SIZE / width) * 100}%`,
+                  height: `${(TILE_SIZE / height) * 100}%`,
+                }}
+                draggable={false}
+              />
+            ))
+          )}
         </div>
 
         <svg viewBox={`0 0 ${width} ${height}`} className="absolute inset-0 w-full h-full pointer-events-none">
@@ -179,7 +217,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         )}
 
         <span className="absolute bottom-1 right-1 text-[9px] bg-black/50 text-white px-1.5 py-0.5 rounded backdrop-blur-sm">
-          Esri World Imagery / 1px ≈ {mpp.toFixed(2)}m
+          {provider === 'google' ? 'Google Maps' : 'Esri World Imagery'} / 1px ≈ {mpp.toFixed(2)}m
         </span>
       </div>
 

@@ -1,4 +1,5 @@
-import { buildTileGrid, aerialTileUrl, mapTileUrl, TILE_SIZE } from '../lib/api/tiles'
+import { useState } from 'react'
+import { buildTileGrid, aerialTileUrl, mapTileUrl, googleStaticMapUrl, GOOGLE_STATIC_MAP_SIZE, TILE_SIZE } from '../lib/api/tiles'
 import type { TileCoord } from '../lib/api/tiles'
 
 interface Props {
@@ -31,6 +32,42 @@ export function TileCanvas({
   className = '',
   children,
 }: Props) {
+  // 航空写真はGoogle Maps Static APIを優先(Esri World Imageryは日本国内で
+  // 解像度が粗い・データ欠落しているエリアが多いため)。キー未設定・読込失敗時のみ
+  // Esriのタイル方式にフォールバックする。地図(国土地理院)は従来通り。
+  const [useGoogle, setUseGoogle] = useState(kind === 'aerial')
+
+  if (kind === 'aerial' && useGoogle) {
+    return (
+      <div className={`relative overflow-hidden bg-neutral-200 dark:bg-neutral-800 ${className}`}>
+        <img
+          src={googleStaticMapUrl(lat, lng, zoom)}
+          alt=""
+          width={GOOGLE_STATIC_MAP_SIZE}
+          height={GOOGLE_STATIC_MAP_SIZE}
+          className="absolute inset-0 w-full h-full object-cover select-none"
+          onError={() => setUseGoogle(false)}
+          draggable={false}
+        />
+
+        {showPin && (
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full pointer-events-none">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="#dc2626" stroke="#fff" strokeWidth="1.5">
+              <path d="M12 22s7-7.58 7-12.5A7 7 0 0 0 5 9.5C5 14.42 12 22 12 22Z" />
+              <circle cx="12" cy="9.5" r="2.5" fill="#fff" stroke="none" />
+            </svg>
+          </div>
+        )}
+
+        {children}
+
+        <span className="absolute bottom-1 right-1 text-[9px] bg-black/50 text-white px-1.5 py-0.5 rounded backdrop-blur-sm">
+          Google Maps
+        </span>
+      </div>
+    )
+  }
+
   const grid = buildTileGrid(lat, lng, zoom, cols, rows)
   const urlFor = kind === 'aerial' ? aerialTileUrl : mapTileUrl
 
