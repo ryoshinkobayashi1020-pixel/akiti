@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * 完成イメージ(3Dパース風・イラスト風)のAI画像生成。
  *
@@ -7,7 +8,9 @@
  * では上位提案のみに限定して呼び出す。
  */
 
-export const config = { runtime: 'edge' }
+// 画像生成は数十秒かかることがあり、Edge Functionの実行時間上限を超えうる。
+// Node.jsランタイムに切り替えmaxDurationを延長する。
+export const config = { runtime: 'nodejs', maxDuration: 60 }
 
 interface GenerateImageRequest {
   proposalName: string
@@ -15,15 +18,13 @@ interface GenerateImageRequest {
   landContext: string
 }
 
-export default async function handler(req: Request): Promise<Response> {
+// Node.jsランタイムではdefault exportに(req, res)形式が期待され、Response(Web標準)を
+// returnしても無視されてハングする。名前付きHTTPメソッドexportでWeb標準ハンドラにする。
+export async function POST(req: Request): Promise<Response> {
   const apiKey = process.env.OPENAI_API_KEY
 
   if (!apiKey) {
     return Response.json({ error: 'OPENAI_API_KEY が未設定です', code: 'API_KEY_MISSING' }, { status: 503 })
-  }
-
-  if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
   }
 
   let body: GenerateImageRequest

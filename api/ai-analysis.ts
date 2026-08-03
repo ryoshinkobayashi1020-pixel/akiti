@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * Claude APIによる土地診断分析。
  *
@@ -7,7 +8,9 @@
  * APIキー未設定時は503を返し、呼び出し側はヒューリスティックにフォールバックする。
  */
 
-export const config = { runtime: 'edge' }
+// 10件の活用提案をまとめて推論させるため、Edge Functionの実行時間上限(約25秒)を
+// 超えることがある。Node.jsランタイムに切り替えmaxDurationを延長する。
+export const config = { runtime: 'nodejs', maxDuration: 60 }
 
 interface AnalysisRequest {
   address: string
@@ -84,15 +87,13 @@ const RESPONSE_SCHEMA = {
   additionalProperties: false,
 }
 
-export default async function handler(req: Request): Promise<Response> {
+// Node.jsランタイムではdefault exportに(req, res)形式が期待され、Response(Web標準)を
+// returnしても無視されてハングする。名前付きHTTPメソッドexportでWeb標準ハンドラにする。
+export async function POST(req: Request): Promise<Response> {
   const apiKey = process.env.ANTHROPIC_API_KEY
 
   if (!apiKey) {
     return Response.json({ error: 'ANTHROPIC_API_KEY が未設定です', code: 'API_KEY_MISSING' }, { status: 503 })
-  }
-
-  if (req.method !== 'POST') {
-    return Response.json({ error: 'POST only' }, { status: 405 })
   }
 
   let body: AnalysisRequest

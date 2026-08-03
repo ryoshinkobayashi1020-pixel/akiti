@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { buildTileGrid, aerialTileUrl, polygonAreaSqm, polygonPerimeterMeters, metersPerPixel, sqmToTsubo, TILE_SIZE } from '../lib/api/tiles'
+import { buildTileGrid, aerialTileUrl, polygonAreaSqm, polygonPerimeterMeters, metersPerPixel, sqmToTsubo, tileToLatLng, TILE_SIZE } from '../lib/api/tiles'
 
 interface Point {
   x: number
@@ -17,6 +17,8 @@ interface Props {
   lat: number
   lng: number
   onChange: (measurement: AreaMeasurement | null) => void
+  /** GPS・住所検索の誤差で中心がずれている場合に、タップで中心を合わせ直すためのコールバック */
+  onRecenter?: (lat: number, lng: number) => void
 }
 
 /** 面積計算はズームが深いほど精度が上がる。19は住宅一区画がはっきり判別できる水準。 */
@@ -30,8 +32,9 @@ const ROWS = 3
  * ズームと緯度から1ピクセルあたりの実距離が確定するため、
  * 得られる面積は目測ではなく計算値になる。
  */
-export function AreaMeasure({ lat, lng, onChange }: Props) {
+export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
   const [points, setPoints] = useState<Point[]>([])
+  const [adjustMode, setAdjustMode] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const grid = buildTileGrid(lat, lng, ZOOM, COLS, ROWS)
@@ -58,10 +61,23 @@ export function AreaMeasure({ lat, lng, onChange }: Props) {
     if (!rect) return
     // 表示は縮小されている可能性があるため、タイル座標系に戻す
     const scale = width / rect.width
-    const next = [
-      ...points,
-      { x: (e.clientX - rect.left) * scale, y: (e.clientY - rect.top) * scale },
-    ]
+    const px = (e.clientX - rect.left) * scale
+    const py = (e.clientY - rect.top) * scale
+
+    if (adjustMode) {
+      // GPS・住所検索の誤差で中心がずれている場合、タップ位置を新しい中心として採用する
+      const origin = grid.tiles[0]
+      const fx = origin.x + px / TILE_SIZE
+      const fy = origin.y + py / TILE_SIZE
+      const { lat: newLat, lng: newLng } = tileToLatLng(fx, fy, ZOOM)
+      setAdjustMode(false)
+      setPoints([])
+      onChange(null)
+      onRecenter?.(newLat, newLng)
+      return
+    }
+
+    const next = [...points, { x: px, y: py }]
     setPoints(next)
     emit(next)
   }
@@ -91,10 +107,33 @@ export function AreaMeasure({ lat, lng, onChange }: Props) {
         航空写真の上で土地の角を順にタップすると、面積を計算します。指定しない場合は周辺の標準的な区画面積で試算します。
       </p>
 
+      {onRecenter && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            ピンの位置が対象地とずれている場合は、正しい位置をタップして合わせ直せます。
+          </p>
+          <button
+            type="button"
+            onClick={() => setAdjustMode((v) => !v)}
+            className={`shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border transition ${
+              adjustMode
+                ? 'bg-amber-500 border-amber-500 text-white'
+                : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-amber-500 hover:text-amber-600'
+            }`}
+          >
+            {adjustMode ? '写真をタップして位置を合わせる…' : '位置を調整する'}
+          </button>
+        </div>
+      )}
+
       <div
         ref={containerRef}
         onClick={handleClick}
-        className="mt-4 relative overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-800 cursor-crosshair select-none"
+        className={`mt-4 relative overflow-hidden rounded-xl border select-none ${
+          adjustMode
+            ? 'border-amber-500 ring-2 ring-amber-400 cursor-pointer'
+            : 'border-neutral-200 dark:border-neutral-800 cursor-crosshair'
+        }`}
         style={{ aspectRatio: `${width} / ${height}` }}
       >
         <div className="absolute inset-0">

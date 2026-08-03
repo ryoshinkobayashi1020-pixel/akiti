@@ -7,10 +7,41 @@
 
 import { metersPerPixel } from './tiles'
 
-const OVERPASS_ENDPOINT = 'https://overpass-api.de/api/interpreter'
+// 無料公開インスタンスは負荷でタイムアウト(504)することが多いため、
+// 複数のミラーを順に試す。すべてAPIキー不要・登録不要。
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.openstreetmap.ru/api/interpreter',
+]
 
 /** 施設検索の半径(メートル) */
 const SEARCH_RADIUS = 1000
+
+async function fetchOverpass(query: string): Promise<{ elements: OverpassElement[] }> {
+  let lastError: unknown = null
+  for (const endpoint of OVERPASS_ENDPOINTS) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 20000)
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`,
+        signal: controller.signal,
+      })
+      clearTimeout(timeout)
+      if (!res.ok) {
+        lastError = new Error(`Overpass API エラー: ${res.status}`)
+        continue
+      }
+      return await res.json()
+    } catch (err) {
+      lastError = err
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Overpass APIへの接続に失敗しました')
+}
 
 export interface NearbyFacilities {
   /** 半径1km内の学校数 */
@@ -114,14 +145,7 @@ export async function fetchNearbyFacilities(lat: number, lng: number): Promise<N
     out center tags;
   `
 
-  const res = await fetch(OVERPASS_ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `data=${encodeURIComponent(query)}`,
-  })
-  if (!res.ok) throw new Error(`Overpass API エラー: ${res.status}`)
-
-  const data: { elements: OverpassElement[] } = await res.json()
+  const data = await fetchOverpass(query)
   const elements = data.elements ?? []
 
   let schools = 0
@@ -178,13 +202,7 @@ export async function fetchSouthSideObstruction(lat: number, lng: number): Promi
       way(around:30,${lat - 0.0002},${lng})["building"];
       out count;
     `
-    const res = await fetch(OVERPASS_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `data=${encodeURIComponent(query)}`,
-    })
-    if (!res.ok) return null
-    const data = await res.json()
+    const data = await fetchOverpass(query)
     const count = Number.parseInt(data.elements?.[0]?.tags?.ways ?? '0', 10)
     return Number.isFinite(count) ? count > 0 : null
   } catch {

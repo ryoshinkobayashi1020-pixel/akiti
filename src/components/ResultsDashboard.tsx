@@ -123,8 +123,8 @@ export function ResultsDashboard({ result, photoUrl }: Props) {
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5">
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">周辺データ</p>
           <div className="grid grid-cols-2 gap-y-2 text-sm">
-            <InfoItem label="公示地価" data={{ value: formatManYen(surrounding.koujiChika.value), source: surrounding.koujiChika.source, note: surrounding.koujiChika.note }} />
-            <InfoItem label="路線価" data={{ value: formatManYen(surrounding.rosenka.value), source: surrounding.rosenka.source, note: surrounding.rosenka.note }} />
+            <InfoItem label="公示地価(㎡単価)" data={{ value: formatManYen(surrounding.koujiChika.value), source: surrounding.koujiChika.source, note: surrounding.koujiChika.note }} />
+            <InfoItem label="路線価(㎡単価)" data={{ value: formatManYen(surrounding.rosenka.value), source: surrounding.rosenka.source, note: surrounding.rosenka.note }} />
             <InfoItem label="地域の平均家賃(月額)" data={{ value: formatManYen(surrounding.shuuhenChinryou.value), source: surrounding.shuuhenChinryou.source, note: surrounding.shuuhenChinryou.note }} />
             <InfoItem label="ハザード情報" data={surrounding.hazardInfo} />
             <InfoItem label="日当たり" data={surrounding.hiatari} />

@@ -9,6 +9,7 @@ import { UtilizationRanking } from './components/UtilizationRanking'
 import { RevenueSimulation } from './components/RevenueSimulation'
 import { ReportExport } from './components/ReportExport'
 import { runDiagnosis } from './lib/diagnosisEngine'
+import { reverseGeocode } from './lib/api/geocode'
 import { DIAGNOSIS_STEPS } from './types/diagnosis'
 import type { DiagnosisResult, DiagnosisStepId, LocationData, PhotoData } from './types/diagnosis'
 
@@ -46,6 +47,18 @@ function App() {
     }
   }
 
+  async function handleRecenter(lat: number, lng: number) {
+    setMeasurement(null)
+    const address = await reverseGeocode(lat, lng)
+    setLocation((prev) => ({
+      method: prev?.method ?? 'address',
+      address,
+      lat,
+      lng,
+      accuracyMeters: null,
+    }))
+  }
+
   function reset() {
     setPhase('input')
     setPhoto(null)
@@ -81,7 +94,12 @@ function App() {
             <LocationInput location={location} onChange={setLocation} />
 
             {location?.lat != null && location.lng != null && (
-              <AreaMeasure lat={location.lat} lng={location.lng} onChange={setMeasurement} />
+              <AreaMeasure
+                lat={location.lat}
+                lng={location.lng}
+                onChange={setMeasurement}
+                onRecenter={handleRecenter}
+              />
             )}
 
             <button

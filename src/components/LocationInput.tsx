@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { LocationData } from '../types/diagnosis'
-import { geocodeAddress } from '../lib/api/geocode'
+import { geocodeAddress, reverseGeocode } from '../lib/api/geocode'
 
 interface Props {
   location: LocationData | null
@@ -22,13 +22,18 @@ export function LocationInput({ location, onChange }: Props) {
     }
     setGpsStatus('loading')
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords
+        // 取得した緯度経度が実際にどこを指しているか、その場で本人が確認できるよう
+        // 住所を逆ジオコーディングして表示する(取得直後は座標のみで実感が持てないため)。
+        const address = await reverseGeocode(lat, lng)
         setGpsStatus('idle')
         onChange({
           method: 'gps',
-          address: '現在地(緯度経度から取得)',
-          lat: pos.coords.latitude,
-          lng: pos.coords.longitude,
+          address,
+          lat,
+          lng,
+          accuracyMeters: Number.isFinite(accuracy) ? Math.round(accuracy) : null,
         })
       },
       (err) => {
@@ -69,24 +74,30 @@ export function LocationInput({ location, onChange }: Props) {
       <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">現在地取得または住所入力、どちらか一方を選択してください。</p>
 
       {location ? (
-        <div className="mt-4 flex items-center justify-between rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 px-4 py-3">
-          <div>
-            <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-              {location.method === 'gps' ? '現在地を取得しました' : location.address}
-            </p>
-            {location.lat !== null && (
-              <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
-                緯度 {location.lat.toFixed(5)} / 経度 {location.lng?.toFixed(5)}
-              </p>
-            )}
+        <div className="mt-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900 px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">{location.address}</p>
+              {location.lat !== null && (
+                <p className="text-xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                  緯度 {location.lat.toFixed(5)} / 経度 {location.lng?.toFixed(5)}
+                  {location.accuracyMeters != null && `(精度 約${location.accuracyMeters}m)`}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => onChange(null)}
+              className="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline shrink-0 ml-3"
+            >
+              変更する
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => onChange(null)}
-            className="text-xs text-neutral-500 hover:text-neutral-800 dark:hover:text-neutral-200 underline shrink-0 ml-3"
-          >
-            変更する
-          </button>
+          {location.method === 'gps' && location.accuracyMeters != null && location.accuracyMeters > 50 && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+              GPS精度が低め(約{location.accuracyMeters}m)です。表示された住所が対象地と異なる場合は、下の航空写真で位置を微調整するか、住所入力に切り替えてください。
+            </p>
+          )}
         </div>
       ) : (
         <div className="mt-4 space-y-3">

@@ -5,6 +5,8 @@ export interface LocationData {
   address: string
   lat: number | null
   lng: number | null
+  /** GPS取得時の精度(メートル)。住所入力の場合はnull */
+  accuracyMeters?: number | null
 }
 
 export interface PhotoData {

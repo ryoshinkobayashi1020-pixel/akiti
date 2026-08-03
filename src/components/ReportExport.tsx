@@ -178,7 +178,7 @@ function buildReportHtml(result: DiagnosisResult, photoUrl: string | null, aeria
 
     <h2 style="font-size:15px;font-weight:700;margin:20px 0 8px;border-left:4px solid #059669;padding-left:8px;">周辺データ</h2>
     <p style="font-size:12px;color:#525252;line-height:1.9;margin:0;">
-      公示地価: ${formatManYen(s.koujiChika.value)}${src(s.koujiChika.source)} ／ 路線価: ${formatManYen(s.rosenka.value)}${src(s.rosenka.source)} ／ 地域の平均家賃(月額): ${formatManYen(s.shuuhenChinryou.value)}${src(s.shuuhenChinryou.source)}<br/>
+      公示地価(㎡単価): ${formatManYen(s.koujiChika.value)}${src(s.koujiChika.source)} ／ 路線価(㎡単価): ${formatManYen(s.rosenka.value)}${src(s.rosenka.source)} ／ 地域の平均家賃(月額): ${formatManYen(s.shuuhenChinryou.value)}${src(s.shuuhenChinryou.source)}<br/>
       ハザード情報: ${s.hazardInfo.value}${src(s.hazardInfo.source)}<br/>
       日当たり: ${s.hiatari.value}${src(s.hiatari.source)} ／ 土地形状: ${s.landShape.value}${src(s.landShape.source)}
     </p>
