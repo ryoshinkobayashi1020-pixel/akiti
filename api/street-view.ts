@@ -12,10 +12,11 @@
 export const config = { runtime: 'edge' }
 
 export default async function handler(req: Request): Promise<Response> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY
+  // Street View専用にAPIキーを分けて発行した場合はそちらを優先する
+  const apiKey = process.env.GOOGLE_STREET_VIEW_API_KEY || process.env.GOOGLE_MAPS_API_KEY
 
   if (!apiKey) {
-    return Response.json({ error: 'GOOGLE_MAPS_API_KEY が未設定です', code: 'API_KEY_MISSING' }, { status: 503 })
+    return Response.json({ error: 'GOOGLE_STREET_VIEW_API_KEY / GOOGLE_MAPS_API_KEY が未設定です', code: 'API_KEY_MISSING' }, { status: 503 })
   }
 
   const url = new URL(req.url)
