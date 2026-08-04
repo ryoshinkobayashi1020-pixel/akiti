@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PhotoInput } from './components/PhotoInput'
 import { LocationInput } from './components/LocationInput'
 import { AreaMeasure } from './components/AreaMeasure'
@@ -10,6 +10,7 @@ import { RevenueSimulation } from './components/RevenueSimulation'
 import { ReportExport } from './components/ReportExport'
 import { runDiagnosis } from './lib/diagnosisEngine'
 import { reverseGeocode } from './lib/api/geocode'
+import { streetViewMetadataUrl, streetViewImageUrl } from './lib/api/tiles'
 import { DIAGNOSIS_STEPS } from './types/diagnosis'
 import type { DiagnosisResult, DiagnosisStepId, LocationData, PhotoData } from './types/diagnosis'
 
@@ -25,6 +26,32 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('')
 
   const canStart = !!photo && !!location && !!measurement
+
+  // 位置情報が確定したら、Street Viewから現地の写真を自動取得する。
+  // ユーザーが自分で撮影・アップロードした写真がある場合は上書きしない。
+  useEffect(() => {
+    if (location?.lat == null || location.lng == null) return
+    const lat = location.lat
+    const lng = location.lng
+    let cancelled = false
+
+    setPhoto((prev) => (prev && !prev.fromStreetView ? prev : null))
+
+    fetch(streetViewMetadataUrl(lat, lng))
+      .then((res) => (res.ok ? res.json() : { status: 'UNAVAILABLE' }))
+      .then((data) => {
+        if (cancelled || data.status !== 'OK') return
+        setPhoto((prev) => {
+          if (prev && !prev.fromStreetView) return prev
+          return { previewUrl: streetViewImageUrl(lat, lng), fromStreetView: true }
+        })
+      })
+      .catch(() => {})
+
+    return () => {
+      cancelled = true
+    }
+  }, [location?.lat, location?.lng])
 
   async function startDiagnosis() {
     if (!canStart || !location) return

@@ -23,7 +23,9 @@ export function PhotoInput({ photo, onChange }: Props) {
         写真
         <span className="text-xs font-normal text-rose-500">必須</span>
       </h3>
-      <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">写真撮影またはアップロード、どちらか一方を選択してください。</p>
+      <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
+        位置情報を入力するとStreet Viewから自動取得されます。ご自身で撮影した写真に差し替えることもできます。
+      </p>
 
       {photo ? (
         <div className="mt-4 relative">
@@ -32,12 +34,17 @@ export function PhotoInput({ photo, onChange }: Props) {
             alt="空き地の写真"
             className="w-full h-48 object-cover rounded-xl border border-neutral-200 dark:border-neutral-800"
           />
+          {photo.fromStreetView && (
+            <span className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full">
+              Google Street Viewから自動取得
+            </span>
+          )}
           <button
             type="button"
             onClick={() => onChange(null)}
             className="absolute top-2 right-2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full hover:bg-black/80 transition"
           >
-            削除してやり直す
+            {photo.fromStreetView ? '自分で撮影し直す' : '削除してやり直す'}
           </button>
         </div>
       ) : (

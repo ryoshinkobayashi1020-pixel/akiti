@@ -10,8 +10,11 @@ export interface LocationData {
 }
 
 export interface PhotoData {
-  file: File
+  /** 手動で撮影・アップロードした場合のみ存在する */
+  file?: File
   previewUrl: string
+  /** Street Viewから自動取得した場合true */
+  fromStreetView?: boolean
 }
 
 /**
