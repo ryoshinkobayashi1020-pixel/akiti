@@ -15,6 +15,7 @@ import {
 } from '../lib/api/tiles'
 import { detectLandBoundary, isBoundaryDetectUnavailable } from '../lib/api/boundaryDetect'
 import { TileCanvas } from './TileCanvas'
+import { StreetView } from './StreetView'
 
 interface Point {
   x: number
@@ -171,15 +172,21 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         航空写真の上で土地の角を順にタップして、実際の面積を測定してください。面積は坪単価・総額・活用提案すべての計算の基礎になるため、必ず指定が必要です。
       </p>
 
-      <div className="mt-3">
-        <p className="text-xs text-neutral-400 mb-1">広域(周辺との位置関係の確認用)</p>
-        <TileCanvas
-          lat={lat}
-          lng={lng}
-          zoom={WIDE_ZOOM}
-          kind="aerial"
-          className="rounded-lg border border-neutral-200 dark:border-neutral-800 h-32"
-        />
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-xs text-neutral-400 mb-1">広域(周辺との位置関係の確認用)</p>
+          <TileCanvas
+            lat={lat}
+            lng={lng}
+            zoom={WIDE_ZOOM}
+            kind="aerial"
+            className="rounded-lg border border-neutral-200 dark:border-neutral-800 h-32"
+          />
+        </div>
+        <div>
+          <p className="text-xs text-neutral-400 mb-1">現地の様子(横からの実写)</p>
+          <StreetView lat={lat} lng={lng} className="rounded-lg border border-neutral-200 dark:border-neutral-800 h-32" />
+        </div>
       </div>
 
       {provider === 'google' && (
@@ -221,12 +228,12 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
       <div
         ref={containerRef}
         onClick={handleClick}
-        className={`mt-4 relative overflow-hidden rounded-xl border select-none ${
+        className={`mt-4 relative overflow-hidden rounded-xl border select-none touch-none ${
           adjustMode
             ? 'border-amber-500 ring-2 ring-amber-400 cursor-pointer'
             : 'border-neutral-200 dark:border-neutral-800 cursor-crosshair'
         }`}
-        style={{ aspectRatio: `${width} / ${height}` }}
+        style={{ aspectRatio: `${width} / ${height}`, touchAction: 'none' }}
       >
         <div className="absolute inset-0">
           {provider === 'google' ? (

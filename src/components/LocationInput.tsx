@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { LocationData } from '../types/diagnosis'
 import { geocodeAddress, reverseGeocode } from '../lib/api/geocode'
+import { StreetView } from './StreetView'
 
 interface Props {
   location: LocationData | null
@@ -97,6 +98,12 @@ export function LocationInput({ location, onChange }: Props) {
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
               GPS精度が低め(約{location.accuracyMeters}m)です。表示された住所が対象地と異なる場合は、下の航空写真で位置を微調整するか、住所入力に切り替えてください。
             </p>
+          )}
+          {location.lat != null && location.lng != null && (
+            <div className="mt-3">
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 mb-1">現地の様子(横からの実写)</p>
+              <StreetView lat={location.lat} lng={location.lng} className="rounded-lg h-40" />
+            </div>
           )}
         </div>
       ) : (
