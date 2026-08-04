@@ -57,10 +57,17 @@ const ROWS = 3
 export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
   const [points, setPoints] = useState<Point[]>([])
   const [adjustMode, setAdjustMode] = useState(false)
+  const [drawMode, setDrawMode] = useState(false)
+  const [isDrawing, setIsDrawing] = useState(false)
+  const [drawPath, setDrawPath] = useState<Point[]>([])
   const [provider, setProvider] = useState<'google' | 'esri'>('google')
   const [detecting, setDetecting] = useState(false)
   const [detectNote, setDetectNote] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const lastDrawPointRef = useRef<Point | null>(null)
+
+  /** なぞっている間、点が多くなりすぎないよう最小間隔(タイル座標系のピクセル)で間引く */
+  const MIN_DRAW_POINT_DISTANCE = 8
 
   // 手動タップは操作が難しいというフィードバックを受け、位置が決まった時点で
   // まずAIによる自動検出を試み、ユーザーは結果を確認・微調整するだけで済むようにする。
@@ -102,17 +109,24 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
     return tileToLatLng(fx, fy, ZOOM)
   }
 
-  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+  /** マウス/タッチのクライアント座標をタイル座標系のピクセルに変換する */
+  function toTilePoint(clientX: number, clientY: number): Point | null {
     const rect = containerRef.current?.getBoundingClientRect()
-    if (!rect) return
+    if (!rect) return null
     // 表示は縮小されている可能性があるため、タイル座標系に戻す
     const scale = width / rect.width
-    const px = (e.clientX - rect.left) * scale
-    const py = (e.clientY - rect.top) * scale
+    return { x: (clientX - rect.left) * scale, y: (clientY - rect.top) * scale }
+  }
+
+  function handleClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (drawMode) return // なぞって囲むモードはポインタードラッグで処理する
+
+    const p = toTilePoint(e.clientX, e.clientY)
+    if (!p) return
 
     if (adjustMode) {
       // GPS・住所検索の誤差で中心がずれている場合、タップ位置を新しい中心として採用する
-      const { lat: newLat, lng: newLng } = pixelToLatLng(px, py)
+      const { lat: newLat, lng: newLng } = pixelToLatLng(p.x, p.y)
       setAdjustMode(false)
       setPoints([])
       onChange(null)
@@ -120,9 +134,42 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
       return
     }
 
-    const next = [...points, { x: px, y: py }]
+    const next = [...points, p]
     setPoints(next)
     emit(next)
+  }
+
+  /** 指でなぞって土地を囲むモード。ドラッグの軌跡をそのまま多角形にする。 */
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!drawMode) return
+    const p = toTilePoint(e.clientX, e.clientY)
+    if (!p) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setIsDrawing(true)
+    setDrawPath([p])
+    lastDrawPointRef.current = p
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!drawMode || !isDrawing) return
+    const p = toTilePoint(e.clientX, e.clientY)
+    if (!p) return
+    const last = lastDrawPointRef.current
+    if (last && Math.hypot(p.x - last.x, p.y - last.y) < MIN_DRAW_POINT_DISTANCE) return
+    lastDrawPointRef.current = p
+    setDrawPath((prev) => [...prev, p])
+  }
+
+  function handlePointerUp() {
+    if (!drawMode || !isDrawing) return
+    setIsDrawing(false)
+    lastDrawPointRef.current = null
+    if (drawPath.length >= 3) {
+      setPoints(drawPath)
+      emit(drawPath)
+      setDrawMode(false)
+    }
+    setDrawPath([])
   }
 
   async function autoDetect() {
@@ -234,13 +281,39 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         </div>
       )}
 
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
+        <p className="text-xs text-neutral-500 dark:text-neutral-400">
+          角を1点ずつタップする代わりに、指でなぞって土地の輪郭を直接囲むこともできます。
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setDrawMode((v) => !v)
+            setAdjustMode(false)
+          }}
+          className={`shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border transition ${
+            drawMode
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-emerald-500 hover:text-emerald-600'
+          }`}
+        >
+          {drawMode ? '指でなぞって囲んでください…' : 'なぞって囲む'}
+        </button>
+      </div>
+
       <div
         ref={containerRef}
         onClick={handleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         className={`mt-4 relative overflow-hidden rounded-xl border select-none touch-none ${
-          adjustMode
-            ? 'border-amber-500 ring-2 ring-amber-400 cursor-pointer'
-            : 'border-neutral-200 dark:border-neutral-800 cursor-crosshair'
+          drawMode
+            ? 'border-emerald-500 ring-2 ring-emerald-400 cursor-crosshair'
+            : adjustMode
+              ? 'border-amber-500 ring-2 ring-amber-400 cursor-pointer'
+              : 'border-neutral-200 dark:border-neutral-800 cursor-crosshair'
         }`}
         style={{ aspectRatio: `${width} / ${height}`, touchAction: 'none' }}
       >
@@ -273,7 +346,17 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         </div>
 
         <svg viewBox={`0 0 ${width} ${height}`} className="absolute inset-0 w-full h-full pointer-events-none">
-          {points.length >= 2 && (
+          {isDrawing && drawPath.length >= 2 && (
+            <polyline
+              points={drawPath.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="rgba(16, 185, 129, 0.28)"
+              stroke="#10b981"
+              strokeWidth={4}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          )}
+          {!isDrawing && points.length >= 2 && (
             <polygon
               points={points.map((p) => `${p.x},${p.y}`).join(' ')}
               fill="rgba(16, 185, 129, 0.28)"
@@ -281,9 +364,8 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
               strokeWidth={3}
             />
           )}
-          {points.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={7} fill="#fff" stroke="#10b981" strokeWidth={3} />
-          ))}
+          {!isDrawing &&
+            points.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r={7} fill="#fff" stroke="#10b981" strokeWidth={3} />)}
         </svg>
 
         {/* 中心位置の目印 */}
