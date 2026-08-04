@@ -7,16 +7,18 @@
 
 import { metersPerPixel } from './tiles'
 
-// 無料公開インスタンスは負荷でタイムアウト(504)することが多いため、
-// 複数のミラーを順に試す。すべてAPIキー不要・登録不要。
+/** 施設検索の半径(メートル) */
+const SEARCH_RADIUS = 1000
+
+// Overpassの公開インスタンスはクラウド/データセンターのIPレンジを広くブロックする
+// ことがある(サーバー経由(Vercel)で試したところ406/429で全滅した)。一方、一般利用者の
+// 回線(モバイル・自宅)からは通ることが多いため、あえてブラウザから直接叩く。
+// 個々のインスタンスが不安定なことも多いため複数ミラーに順にフォールバックする。
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.ru/api/interpreter',
 ]
-
-/** 施設検索の半径(メートル) */
-const SEARCH_RADIUS = 1000
 
 async function fetchOverpass(query: string): Promise<{ elements: OverpassElement[] }> {
   let lastError: unknown = null
