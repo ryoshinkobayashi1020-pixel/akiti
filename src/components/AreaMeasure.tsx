@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   buildTileGrid,
   aerialTileUrl,
@@ -61,6 +61,13 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
   const [detecting, setDetecting] = useState(false)
   const [detectNote, setDetectNote] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // 手動タップは操作が難しいというフィードバックを受け、位置が決まった時点で
+  // まずAIによる自動検出を試み、ユーザーは結果を確認・微調整するだけで済むようにする。
+  useEffect(() => {
+    autoDetect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lat, lng])
 
   const grid = buildTileGrid(lat, lng, ZOOM, COLS, ROWS)
   const width = provider === 'google' ? GOOGLE_STATIC_MAP_SIZE : grid.width
@@ -169,7 +176,9 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         <span className="text-xs font-normal text-rose-500">必須</span>
       </h3>
       <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-        航空写真の上で土地の角を順にタップして、実際の面積を測定してください。面積は坪単価・総額・活用提案すべての計算の基礎になるため、必ず指定が必要です。
+        {detecting
+          ? 'AIが航空写真から区画境界を自動検出しています…'
+          : '面積はAIが自動検出します。ずれている場合のみ、航空写真上で角をタップして直してください(坪単価・総額・活用提案すべての計算の基礎になります)。'}
       </p>
 
       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -192,7 +201,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
       {provider === 'google' && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
           <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            タップでの指定が難しい場合、AIに航空写真から区画境界を推定させることもできます(あくまでAI推定です)。
+            うまく検出できていない場合、もう一度AIに推定させ直せます(あくまでAI推定です)。
           </p>
           <button
             type="button"
@@ -200,7 +209,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
             disabled={detecting}
             className="shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border border-emerald-500 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition disabled:opacity-50"
           >
-            {detecting ? '検出中…' : 'AIで自動検出'}
+            {detecting ? '検出中…' : 'AIでやり直す'}
           </button>
         </div>
       )}
