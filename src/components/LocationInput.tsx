@@ -125,7 +125,11 @@ export function LocationInput({ location, onChange }: Props) {
               type="text"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && submitAddress()}
+              onKeyDown={(e) => {
+                // IME(日本語入力)で漢字変換を確定するEnterまで拾ってしまい、
+                // 入力途中の住所で検索が走ってしまうのを防ぐ
+                if (e.key === 'Enter' && !e.nativeEvent.isComposing) submitAddress()
+              }}
               placeholder="住所を入力(例: 東京都渋谷区〇〇1-2-3)"
               className="flex-1 rounded-xl border border-neutral-300 dark:border-neutral-700 bg-transparent px-4 py-2.5 text-sm text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />

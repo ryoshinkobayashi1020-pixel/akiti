@@ -14,6 +14,7 @@ import {
   TILE_SIZE,
 } from '../lib/api/tiles'
 import { detectLandBoundary, isBoundaryDetectUnavailable } from '../lib/api/boundaryDetect'
+import { TileCanvas } from './TileCanvas'
 
 interface Point {
   x: number
@@ -37,6 +38,8 @@ interface Props {
 
 /** 面積計算はズームが深いほど精度が上がる。19は住宅一区画がはっきり判別できる水準。 */
 const ZOOM = 19
+/** 拡大画像だけだと周辺との位置関係が分からないため、広域確認用に表示するズーム */
+const WIDE_ZOOM = 16
 const COLS = 3
 const ROWS = 3
 
@@ -167,6 +170,17 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
       <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
         航空写真の上で土地の角を順にタップして、実際の面積を測定してください。面積は坪単価・総額・活用提案すべての計算の基礎になるため、必ず指定が必要です。
       </p>
+
+      <div className="mt-3">
+        <p className="text-xs text-neutral-400 mb-1">広域(周辺との位置関係の確認用)</p>
+        <TileCanvas
+          lat={lat}
+          lng={lng}
+          zoom={WIDE_ZOOM}
+          kind="aerial"
+          className="rounded-lg border border-neutral-200 dark:border-neutral-800 h-32"
+        />
+      </div>
 
       {provider === 'google' && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
