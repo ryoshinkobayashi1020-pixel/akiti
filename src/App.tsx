@@ -24,7 +24,7 @@ function App() {
   const [result, setResult] = useState<DiagnosisResult | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
 
-  const canStart = !!photo && !!location
+  const canStart = !!photo && !!location && !!measurement
 
   async function startDiagnosis() {
     if (!canStart || !location) return
@@ -110,6 +110,11 @@ function App() {
             >
               AI診断を開始する
             </button>
+            {!canStart && location && !measurement && (
+              <p className="text-xs text-rose-500 text-center -mt-3">
+                「土地の範囲を指定」で航空写真上の角をタップし、面積を測定してください
+              </p>
+            )}
           </div>
         )}
 

@@ -29,8 +29,11 @@ export default async function handler(req: Request): Promise<Response> {
     return Response.json({ error: 'lat, lng は必須です' }, { status: 400 })
   }
 
-  const endpoint = mode === 'metadata' ? 'metadata' : 'streetview'
-  const upstream = new URL(`https://maps.googleapis.com/maps/api/streetview/${endpoint}`)
+  const upstream = new URL(
+    mode === 'metadata'
+      ? 'https://maps.googleapis.com/maps/api/streetview/metadata'
+      : 'https://maps.googleapis.com/maps/api/streetview',
+  )
   upstream.searchParams.set('location', `${lat},${lng}`)
   upstream.searchParams.set('radius', '100')
   if (mode !== 'metadata') {

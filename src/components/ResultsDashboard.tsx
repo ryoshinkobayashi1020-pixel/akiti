@@ -113,7 +113,7 @@ export function ResultsDashboard({ result, photoUrl }: Props) {
         <StatCard
           label="売却予想価格"
           value={`${formatManYen(price.salePriceLow)} 〜 ${formatManYen(price.salePriceHigh)}`}
-          sub={`周辺相場比 ${price.marketComparisonPercent > 0 ? '+' : ''}${price.marketComparisonPercent}%`}
+          sub="推定土地価格の92%〜108%で試算"
           source={price.basis}
         />
       </div>
@@ -123,6 +123,7 @@ export function ResultsDashboard({ result, photoUrl }: Props) {
           <p className="text-xs text-neutral-500 dark:text-neutral-400">売却しやすさ</p>
           <p className={`text-xl font-bold mt-1 ${ease.color}`}>{ease.label}</p>
           <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1">想定売却期間 約{price.expectedSaleMonths}ヶ月</p>
+          <p className="text-xs text-neutral-400 mt-1.5">{price.saleEaseNote}</p>
         </div>
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 p-5">
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mb-2">周辺データ</p>

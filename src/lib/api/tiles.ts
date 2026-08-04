@@ -133,7 +133,7 @@ export function mapTileUrl(t: TileCoord): string {
   return `https://cyberjapandata.gsi.go.jp/xyz/pale/${t.z}/${t.x}/${t.y}.png`
 }
 
-async function urlToDataUrl(url: string): Promise<string | null> {
+export async function urlToDataUrl(url: string): Promise<string | null> {
   try {
     const res = await fetch(url)
     if (!res.ok) return null

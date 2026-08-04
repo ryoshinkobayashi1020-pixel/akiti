@@ -103,9 +103,8 @@ export interface PriceEstimate {
   salePriceLow: number
   salePriceHigh: number
   saleEase: 'high' | 'medium' | 'low'
+  saleEaseNote: string
   expectedSaleMonths: number
-  /** 周辺相場との差(%) */
-  marketComparisonPercent: number
   /** 価格算出の根拠 */
   basis: DataSource
   basisNote: string

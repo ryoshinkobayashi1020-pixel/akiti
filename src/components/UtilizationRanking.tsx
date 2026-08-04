@@ -13,8 +13,6 @@ interface Props {
 }
 
 const RANK_BADGE = ['bg-amber-400 text-amber-950', 'bg-neutral-300 text-neutral-800', 'bg-orange-300 text-orange-950']
-/** コスト抑制のため、AI画像生成は上位何件に限定するか */
-const AI_IMAGE_LIMIT = 3
 /** 完成イメージ生成の参照画像として使う航空写真のズームレベル */
 const AERIAL_REF_ZOOM = 19
 
@@ -58,7 +56,7 @@ export function UtilizationRanking({ proposals, landContext = '', lat, lng }: Pr
               id={p.id}
               name={p.name}
               imageStyle={p.imageStyle}
-              useAiImage={idx < AI_IMAGE_LIMIT}
+              useAiImage
               landContext={landContext}
               aerialImageDataUrl={aerialImageDataUrl}
             />

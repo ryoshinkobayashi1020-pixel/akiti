@@ -98,7 +98,7 @@ function buildReportHtml(result: DiagnosisResult, photoUrl: string | null, aeria
     )
     .join('')
 
-  const imageProposals = proposals.slice(0, 3).flatMap((p) => {
+  const imageProposals = proposals.flatMap((p) => {
     const url = getCachedProposalImage(p.id)
     return url ? [{ p, url }] : []
   })
@@ -165,7 +165,7 @@ function buildReportHtml(result: DiagnosisResult, photoUrl: string | null, aeria
       </tr>
       <tr>
         <td style="padding:6px 8px;color:#737373;">売却予想価格</td>
-        <td style="padding:6px 8px;font-weight:700;" colspan="3">${formatManYen(price.salePriceLow)} 〜 ${formatManYen(price.salePriceHigh)} (周辺相場比 ${price.marketComparisonPercent > 0 ? '+' : ''}${price.marketComparisonPercent}%)</td>
+        <td style="padding:6px 8px;font-weight:700;" colspan="3">${formatManYen(price.salePriceLow)} 〜 ${formatManYen(price.salePriceHigh)}(推定土地価格の92%〜108%で試算)</td>
       </tr>
       <tr>
         <td style="padding:6px 8px;color:#737373;">売却しやすさ</td>

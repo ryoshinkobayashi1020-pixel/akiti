@@ -126,20 +126,19 @@ export async function runDiagnosis(
 
   // --- 3. 航空写真取得 -------------------------------------------------------
   // タイルは表示側で直接読み込むため、ここでは面積の確定のみ行う。
+  // 面積は坪単価・総額・活用提案すべての計算の基礎となるため、入力画面側で
+  // 実測(measurement)を必須化している。ここでは仮の面積で誤魔化さず、
+  // 万一未指定のまま呼ばれた場合は明示的にエラーとする。
   onStep('aerial', 2)
-  const area: LandArea = measurement
-    ? {
-        sqm: measurement.sqm,
-        tsubo: measurement.tsubo,
-        source: 'measured',
-        note: '航空写真上で指定した範囲から算出',
-      }
-    : {
-        sqm: 165,
-        tsubo: 165 / SQM_PER_TSUBO,
-        source: 'estimated',
-        note: '範囲未指定のため、一般的な戸建区画(約50坪)を仮定',
-      }
+  if (!measurement) {
+    throw new Error('土地の面積が測定されていません。航空写真上で土地の角をタップして範囲を指定してください。')
+  }
+  const area: LandArea = {
+    sqm: measurement.sqm,
+    tsubo: measurement.tsubo,
+    source: 'measured',
+    note: '航空写真上で指定した範囲から算出',
+  }
 
   // --- 4. 周辺データ取得 -----------------------------------------------------
   onStep('surrounding', 3)
@@ -205,30 +204,34 @@ export async function runDiagnosis(
 
   onStep('land_price', 5)
 
-  // 近傍3地点の中央値を採用する。1点だけだと外れ値の影響が大きい。
-  const nearby = pricePoints.slice(0, 3)
+  // 遠すぎる地点は「近傍」とは言えず、ローカルな価格水準を反映しないため除外する。
+  // その上で近い順3地点の中央値を採用する(1点だけだと外れ値の影響が大きい)。
+  const MAX_LAND_PRICE_DISTANCE_M = 5000
+  const nearby = pricePoints.filter((p) => p.distance <= MAX_LAND_PRICE_DISTANCE_M).slice(0, 3)
   const officialSqmPrice = median(nearby.map((p) => p.pricePerSqm))
 
   let tsuboTanka: Sourced<number>
   let koujiChika: Sourced<number>
 
   if (officialSqmPrice !== null) {
-    tsuboTanka = sourced(
-      Math.round(sqmPriceToTsuboPrice(officialSqmPrice)),
-      'official',
-      `${landPriceSourceNote}の近傍${nearby.length}地点の中央値`,
-    )
-    koujiChika = sourced(Math.round(officialSqmPrice), 'official', landPriceSourceNote)
+    const maxDistanceKm = (Math.max(...nearby.map((p) => p.distance)) / 1000).toFixed(1)
+    const note = `${landPriceSourceNote}の近傍${nearby.length}地点(最大${maxDistanceKm}km以内)の中央値`
+    tsuboTanka = sourced(Math.round(sqmPriceToTsuboPrice(officialSqmPrice)), 'official', note)
+    koujiChika = sourced(Math.round(officialSqmPrice), 'official', note)
   } else {
-    // 公的データが無い場合、周辺施設の充実度から粗い目安を置く。
-    // これは推定値であり、実勢価格とは乖離しうる。
+    // 半径5km以内に公示地価の地点が無い(=そもそも取得0件、またはあっても遠方のみ)場合、
+    // 周辺施設の充実度から粗い目安を置く。これは推定値であり、実勢価格とは乖離しうる。
+    const estimateReason =
+      pricePoints.length === 0
+        ? '公示地価データを取得できなかったため'
+        : `半径${MAX_LAND_PRICE_DISTANCE_M / 1000}km以内に公示地価の地点が見つからなかったため`
     const convenience = facilities.supermarkets * 3 + facilities.schools * 2 + facilities.hospitals * 2
     const stationBonus =
       facilities.nearestStationDistance !== null
         ? Math.max(0, 30 - facilities.nearestStationDistance / 100)
         : 0
     const estimatedTsubo = Math.round((25 + convenience + stationBonus) * 10000)
-    tsuboTanka = sourced(estimatedTsubo, 'estimated', '周辺施設の充実度と駅距離からの粗い推定値')
+    tsuboTanka = sourced(estimatedTsubo, 'estimated', `${estimateReason}、周辺施設の充実度と駅距離からの粗い推定値`)
     koujiChika = sourced(Math.round(estimatedTsubo / SQM_PER_TSUBO), 'estimated', '坪単価からの換算値')
   }
 
@@ -310,13 +313,47 @@ export async function runDiagnosis(
 
   const landPriceTotal = Math.round(tsuboTanka.value * area.tsubo)
 
-  // 実際の取引価格データ(不動産情報ライブラリAPI)は登録審査に日数を要するため
-  // 使用しない。実取引価格との比較は行わず、地価公示ベースの試算にとどめる。
-  const marketComparisonPercent = 0
+  // 実際の取引価格データ(不動産情報ライブラリAPI)は登録審査に日数を要するため使用しない。
+  // 「周辺相場比」という架空の比較値は使わず、駅距離・周辺施設充実度・ハザードリスクという
+  // 実データから売却しやすさを判定する。
+  let saleEaseScore = 0
+  const saleEaseFactors: string[] = []
 
-  const saleEase: PriceEstimate['saleEase'] =
-    marketComparisonPercent < -3 ? 'high' : marketComparisonPercent > 8 ? 'low' : 'medium'
+  if (facilities.nearestStationDistance !== null) {
+    if (facilities.nearestStationDistance <= 800) {
+      saleEaseScore += 2
+      saleEaseFactors.push('駅から近い')
+    } else if (facilities.nearestStationDistance <= 1500) {
+      saleEaseScore += 1
+    } else if (facilities.nearestStationDistance > 3000) {
+      saleEaseScore -= 1
+      saleEaseFactors.push('駅から遠い')
+    }
+  }
+
+  const facilityCount = facilities.schools + facilities.hospitals + facilities.supermarkets
+  if (facilityCount >= 8) {
+    saleEaseScore += 1
+    saleEaseFactors.push('周辺施設が充実')
+  } else if (facilityCount === 0) {
+    saleEaseScore -= 1
+    saleEaseFactors.push('周辺施設が少ない')
+  }
+
+  const inHazardZone =
+    hazardResult != null &&
+    (hazardResult.flood.inZone || hazardResult.debrisFlow.inZone || hazardResult.steepSlope.inZone || hazardResult.landslide.inZone)
+  if (inHazardZone) {
+    saleEaseScore -= 2
+    saleEaseFactors.push('ハザードエリアに該当')
+  }
+
+  const saleEase: PriceEstimate['saleEase'] = saleEaseScore >= 2 ? 'high' : saleEaseScore <= -2 ? 'low' : 'medium'
   const expectedSaleMonths = saleEase === 'high' ? 3 : saleEase === 'medium' ? 6 : 11
+  const saleEaseNote =
+    saleEaseFactors.length > 0
+      ? `判定要因: ${saleEaseFactors.join('・')}(駅距離・周辺施設・ハザード情報に基づく)`
+      : '駅距離・周辺施設・ハザード情報から、特段の加点/減点要因は見られませんでした'
 
   const price: PriceEstimate = {
     landPricePerTsubo: tsuboTanka.value,
@@ -324,8 +361,8 @@ export async function runDiagnosis(
     salePriceLow: Math.round(landPriceTotal * 0.92),
     salePriceHigh: Math.round(landPriceTotal * 1.08),
     saleEase,
+    saleEaseNote,
     expectedSaleMonths,
-    marketComparisonPercent,
     basis: tsuboTanka.source,
     basisNote:
       tsuboTanka.source === 'official'

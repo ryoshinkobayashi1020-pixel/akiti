@@ -10,8 +10,10 @@ import {
   sqmToTsubo,
   latLngToTile,
   tileToLatLng,
+  urlToDataUrl,
   TILE_SIZE,
 } from '../lib/api/tiles'
+import { detectLandBoundary, isBoundaryDetectUnavailable } from '../lib/api/boundaryDetect'
 
 interface Point {
   x: number
@@ -52,6 +54,8 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
   const [points, setPoints] = useState<Point[]>([])
   const [adjustMode, setAdjustMode] = useState(false)
   const [provider, setProvider] = useState<'google' | 'esri'>('google')
+  const [detecting, setDetecting] = useState(false)
+  const [detectNote, setDetectNote] = useState<string | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   const grid = buildTileGrid(lat, lng, ZOOM, COLS, ROWS)
@@ -110,6 +114,35 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
     emit(next)
   }
 
+  async function autoDetect() {
+    setDetecting(true)
+    setDetectNote(null)
+    try {
+      const imageDataUrl = await urlToDataUrl(googleStaticMapUrl(lat, lng, ZOOM))
+      if (!imageDataUrl) {
+        setDetectNote('航空写真の取得に失敗しました。手動でタップして指定してください。')
+        return
+      }
+      const result = await detectLandBoundary(imageDataUrl)
+      if (!result.confident || result.points.length < 3) {
+        setDetectNote('AIが十分な自信を持って境界を判定できませんでした。手動でタップして指定してください。')
+        return
+      }
+      const next = result.points.map((p) => ({ x: p.xFraction * width, y: p.yFraction * height }))
+      setPoints(next)
+      emit(next)
+      setDetectNote(`AIによる推定境界です(根拠: ${result.reasoning})。ずれている場合は個別の点をやり直してください`)
+    } catch (err) {
+      if (isBoundaryDetectUnavailable(err)) {
+        setDetectNote('区画境界の自動検出は現在利用できません。手動でタップして指定してください。')
+      } else {
+        setDetectNote(err instanceof Error ? err.message : '自動検出に失敗しました。手動でタップして指定してください。')
+      }
+    } finally {
+      setDetecting(false)
+    }
+  }
+
   function undo() {
     const next = points.slice(0, -1)
     setPoints(next)
@@ -129,11 +162,28 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
       <h3 className="text-base font-semibold text-neutral-900 dark:text-neutral-100 flex items-center gap-2">
         <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-xs font-bold">3</span>
         土地の範囲を指定
-        <span className="text-xs font-normal text-neutral-400">任意</span>
+        <span className="text-xs font-normal text-rose-500">必須</span>
       </h3>
       <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-        航空写真の上で土地の角を順にタップすると、面積を計算します。指定しない場合は周辺の標準的な区画面積で試算します。
+        航空写真の上で土地の角を順にタップして、実際の面積を測定してください。面積は坪単価・総額・活用提案すべての計算の基礎になるため、必ず指定が必要です。
       </p>
+
+      {provider === 'google' && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            タップでの指定が難しい場合、AIに航空写真から区画境界を推定させることもできます(あくまでAI推定です)。
+          </p>
+          <button
+            type="button"
+            onClick={autoDetect}
+            disabled={detecting}
+            className="shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border border-emerald-500 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition disabled:opacity-50"
+          >
+            {detecting ? '検出中…' : 'AIで自動検出'}
+          </button>
+        </div>
+      )}
+      {detectNote && <p className="mt-2 text-xs text-amber-600 dark:text-amber-400">{detectNote}</p>}
 
       {onRecenter && (
         <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
