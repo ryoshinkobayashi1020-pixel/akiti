@@ -20,11 +20,18 @@ export function isBoundaryDetectUnavailable(err: unknown): boolean {
   return err instanceof BoundaryDetectUnavailableError
 }
 
-export async function detectLandBoundary(imageDataUrl: string): Promise<BoundaryDetectResult> {
+export async function detectLandBoundary(
+  imageDataUrl: string,
+  clickPoint?: { xFraction: number; yFraction: number },
+): Promise<BoundaryDetectResult> {
   const res = await fetch('/api/detect-boundary', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ imageDataUrl }),
+    body: JSON.stringify({
+      imageDataUrl,
+      clickXFraction: clickPoint?.xFraction,
+      clickYFraction: clickPoint?.yFraction,
+    }),
   })
 
   if (res.status === 503) throw new BoundaryDetectUnavailableError()

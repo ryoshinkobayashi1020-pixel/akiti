@@ -58,6 +58,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
   const [points, setPoints] = useState<Point[]>([])
   const [adjustMode, setAdjustMode] = useState(false)
   const [drawMode, setDrawMode] = useState(false)
+  const [clickSelectMode, setClickSelectMode] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
   const [drawPath, setDrawPath] = useState<Point[]>([])
   const [provider, setProvider] = useState<'google' | 'esri'>('google')
@@ -134,9 +135,45 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
       return
     }
 
+    if (clickSelectMode) {
+      detectAtPoint(p)
+      return
+    }
+
     const next = [...points, p]
     setPoints(next)
     emit(next)
+  }
+
+  /** タップした建物・区画をAIに自動選択させる */
+  async function detectAtPoint(p: Point) {
+    setClickSelectMode(false)
+    setDetecting(true)
+    setDetectNote(null)
+    try {
+      const imageDataUrl = await urlToDataUrl(googleStaticMapUrl(lat, lng, ZOOM))
+      if (!imageDataUrl) {
+        setDetectNote('航空写真の取得に失敗しました。手動でタップして指定してください。')
+        return
+      }
+      const result = await detectLandBoundary(imageDataUrl, { xFraction: p.x / width, yFraction: p.y / height })
+      if (!result.confident || result.points.length < 3) {
+        setDetectNote('タップした場所の区画をAIが判定できませんでした。もう一度タップするか、手動で指定してください。')
+        return
+      }
+      const next = result.points.map((rp) => ({ x: rp.xFraction * width, y: rp.yFraction * height }))
+      setPoints(next)
+      emit(next)
+      setDetectNote(`AIによる推定境界です(根拠: ${result.reasoning})。ずれている場合は個別の点をやり直してください`)
+    } catch (err) {
+      if (isBoundaryDetectUnavailable(err)) {
+        setDetectNote('区画境界の自動検出は現在利用できません。手動でタップして指定してください。')
+      } else {
+        setDetectNote(err instanceof Error ? err.message : '自動検出に失敗しました。手動でタップして指定してください。')
+      }
+    } finally {
+      setDetecting(false)
+    }
   }
 
   /** 指でなぞって土地を囲むモード。ドラッグの軌跡をそのまま多角形にする。 */
@@ -269,7 +306,11 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
           </p>
           <button
             type="button"
-            onClick={() => setAdjustMode((v) => !v)}
+            onClick={() => {
+              setAdjustMode((v) => !v)
+              setDrawMode(false)
+              setClickSelectMode(false)
+            }}
             className={`shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border transition ${
               adjustMode
                 ? 'bg-amber-500 border-amber-500 text-white'
@@ -277,6 +318,30 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
             }`}
           >
             {adjustMode ? '写真をタップして位置を合わせる…' : '位置を調整する'}
+          </button>
+        </div>
+      )}
+
+      {provider === 'google' && (
+        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg bg-neutral-50 dark:bg-neutral-900 px-3 py-2">
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            対象の建物や土地を1回タップするだけで、AIがその区画を自動で囲みます。
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setClickSelectMode((v) => !v)
+              setAdjustMode(false)
+              setDrawMode(false)
+            }}
+            disabled={detecting}
+            className={`shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border transition disabled:opacity-50 ${
+              clickSelectMode
+                ? 'bg-emerald-500 border-emerald-500 text-white'
+                : 'border-neutral-300 dark:border-neutral-700 text-neutral-600 dark:text-neutral-300 hover:border-emerald-500 hover:text-emerald-600'
+            }`}
+          >
+            {clickSelectMode ? '建物・土地をタップしてください…' : 'クリックで自動選択'}
           </button>
         </div>
       )}
@@ -290,6 +355,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
           onClick={() => {
             setDrawMode((v) => !v)
             setAdjustMode(false)
+            setClickSelectMode(false)
           }}
           className={`shrink-0 text-xs rounded-full px-3 py-1.5 font-medium border transition ${
             drawMode
@@ -309,7 +375,7 @@ export function AreaMeasure({ lat, lng, onChange, onRecenter }: Props) {
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         className={`mt-4 relative overflow-hidden rounded-xl border select-none touch-none ${
-          drawMode
+          drawMode || clickSelectMode
             ? 'border-emerald-500 ring-2 ring-emerald-400 cursor-crosshair'
             : adjustMode
               ? 'border-amber-500 ring-2 ring-amber-400 cursor-pointer'

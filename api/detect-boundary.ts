@@ -15,6 +15,9 @@ export const config = { runtime: 'nodejs', maxDuration: 30 }
 interface DetectBoundaryRequest {
   /** 航空写真(data URL)。中心にピンがある想定 */
   imageDataUrl: string
+  /** ユーザーがタップした地点(画像の割合座標)。指定時はピン中心ではなくこの地点を対象にする */
+  clickXFraction?: number
+  clickYFraction?: number
 }
 
 const RESPONSE_SCHEMA = {
@@ -67,8 +70,15 @@ export async function POST(req: Request): Promise<Response> {
   }
   const [, mime, base64] = match
 
-  const prompt = `この画像は日本のある地点の航空写真(衛星写真)です。画像の中心には赤いピンが立っており、そこが診断対象の空き地(vacant lot)です。
-フェンス・縁石・隣接する建物の壁・植栽の切れ目・舗装(アスファルト/土/芝)の変化など、写真から視覚的に読み取れる手がかりをもとに、そのピン位置にある区画(空き地)の境界を推定してください。
+  const hasClickPoint =
+    typeof body.clickXFraction === 'number' && typeof body.clickYFraction === 'number'
+
+  const targetDescription = hasClickPoint
+    ? `画像の左上を(0,0)、右下を(1,1)としたとき、座標(${body.clickXFraction!.toFixed(3)}, ${body.clickYFraction!.toFixed(3)})付近をユーザーがタップし、そこにある建物または土地区画を指定しました。`
+    : '画像の中心には赤いピンが立っており、そこが診断対象の空き地(vacant lot)です。'
+
+  const prompt = `この画像は日本のある地点の航空写真(衛星写真)です。${targetDescription}
+フェンス・縁石・隣接する建物の壁・植栽の切れ目・舗装(アスファルト/土/芝)の変化など、写真から視覚的に読み取れる手がかりをもとに、その地点にある区画(建物の外形、または空き地の敷地境界)を推定してください。
 推測に自信が持てない場合(手がかりが乏しい、複数区画の判別がつかない等)は、無理に境界を作らず confident: false としてください。`
 
   try {

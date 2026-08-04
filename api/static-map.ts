@@ -28,6 +28,9 @@ export default async function handler(req: Request): Promise<Response> {
   upstream.searchParams.set('center', `${lat},${lng}`)
   upstream.searchParams.set('zoom', zoom)
   upstream.searchParams.set('size', `${size}x${size}`)
+  // scale=2で実ピクセル数を2倍にし、地理的な範囲(座標計算の基準)は変えずに
+  // 表示の鮮明さだけを上げる(境界のタップ・なぞり操作の精度向上のため)。
+  upstream.searchParams.set('scale', '2')
   upstream.searchParams.set('maptype', 'satellite')
   upstream.searchParams.set('key', apiKey)
 
