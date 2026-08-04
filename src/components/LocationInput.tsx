@@ -12,8 +12,15 @@ export function LocationInput({ location, onChange }: Props) {
   const [address, setAddress] = useState('')
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [gpsError, setGpsError] = useState('')
+  const [gpsLiveAccuracy, setGpsLiveAccuracy] = useState<number | null>(null)
   const [addressStatus, setAddressStatus] = useState<'idle' | 'loading' | 'error'>('idle')
   const [addressError, setAddressError] = useState('')
+
+  /** GPS精度がここ以下になったら、それ以上待たずに確定する(メートル) */
+  const GOOD_ENOUGH_ACCURACY_M = 15
+  /** iOS等では最初の1回だけだと精度が低いまま返ってくることがあるため、
+   * この時間内は複数回の測位結果から最も精度の良いものを採用する */
+  const GPS_REFINE_MS = 8000
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -22,27 +29,63 @@ export function LocationInput({ location, onChange }: Props) {
       return
     }
     setGpsStatus('loading')
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const { latitude: lat, longitude: lng, accuracy } = pos.coords
-        // 取得した緯度経度が実際にどこを指しているか、その場で本人が確認できるよう
-        // 住所を逆ジオコーディングして表示する(取得直後は座標のみで実感が持てないため)。
-        const address = await reverseGeocode(lat, lng)
-        setGpsStatus('idle')
-        onChange({
-          method: 'gps',
-          address,
-          lat,
-          lng,
-          accuracyMeters: Number.isFinite(accuracy) ? Math.round(accuracy) : null,
-        })
+    setGpsError('')
+    setGpsLiveAccuracy(null)
+
+    let best: GeolocationPosition | null = null
+    let finished = false
+
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) {
+          best = pos
+          setGpsLiveAccuracy(Math.round(pos.coords.accuracy))
+        }
+        if (pos.coords.accuracy <= GOOD_ENOUGH_ACCURACY_M) finish()
       },
       (err) => {
+        // 途中経過で精度の良い値が既に取れていれば、エラーになっても採用する
+        if (best) {
+          finish()
+          return
+        }
+        finished = true
+        navigator.geolocation.clearWatch(watchId)
         setGpsStatus('error')
         setGpsError(err.message || '位置情報の取得に失敗しました。')
       },
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_REFINE_MS },
     )
+
+    const timeoutId = setTimeout(() => {
+      if (best) {
+        finish()
+      } else if (!finished) {
+        finished = true
+        navigator.geolocation.clearWatch(watchId)
+        setGpsStatus('error')
+        setGpsError('位置情報の取得がタイムアウトしました。電波状況の良い場所でもう一度お試しください。')
+      }
+    }, GPS_REFINE_MS)
+
+    async function finish() {
+      if (finished || !best) return
+      finished = true
+      navigator.geolocation.clearWatch(watchId)
+      clearTimeout(timeoutId)
+      const { latitude: lat, longitude: lng, accuracy } = best.coords
+      // 取得した緯度経度が実際にどこを指しているか、その場で本人が確認できるよう
+      // 住所を逆ジオコーディングして表示する(取得直後は座標のみで実感が持てないため)。
+      const address = await reverseGeocode(lat, lng)
+      setGpsStatus('idle')
+      onChange({
+        method: 'gps',
+        address,
+        lat,
+        lng,
+        accuracyMeters: Number.isFinite(accuracy) ? Math.round(accuracy) : null,
+      })
+    }
   }
 
   async function submitAddress() {
@@ -116,7 +159,11 @@ export function LocationInput({ location, onChange }: Props) {
           >
             <PinIcon />
             <span className="text-sm font-medium">
-              {gpsStatus === 'loading' ? '取得中…' : '現在地を取得する(GPS)'}
+              {gpsStatus === 'loading'
+                ? gpsLiveAccuracy != null
+                  ? `精度を上げています…(現在 約${gpsLiveAccuracy}m)`
+                  : '取得中…'
+                : '現在地を取得する(GPS)'}
             </span>
           </button>
           {gpsStatus === 'error' && <p className="text-xs text-rose-500">{gpsError}</p>}
